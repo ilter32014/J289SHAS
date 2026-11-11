@@ -1,0 +1,45 @@
+name: SSH via LocalTunnel
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssh_password:
+        description: 'SSH Baglanti Sifreniz'
+        required: true
+        default: 'GucluBirSifre123!'
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu Kopyala
+        uses: actions/checkout@v4
+
+      - name: SSH Sunucusunu ve Tünel Araçlarını Kur
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          sudo npm install -g localtunnel
+
+      - name: SSH Şifresini Ayarla
+        run: |
+          echo "runner:${{ github.event.inputs.ssh_password }}" | sudo chpasswd
+          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo service ssh restart
+
+      - name: LocalTunnel ile SSH Bağlantısını Başlat
+        run: |
+          echo "=========================================="
+          echo "SSH Bağlantı Bilgileri:"
+          echo "Kullanıcı Adı: runner"
+          echo "Şifre: ${{ github.event.inputs.ssh_password }}"
+          echo "=========================================="
+          
+          # Localtunnel ile 22 numaralı portu dışarıya açıyoruz
+          lt --port 22 &
+          
+          # Tünel adresinin oluşması için biraz bekleyip döngüye alıyoruz
+          sleep 99999
