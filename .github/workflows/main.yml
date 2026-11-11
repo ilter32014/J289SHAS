@@ -1,4 +1,4 @@
-name: SSH via LocalTunnel
+name: Serveo SSH Tunnel
 
 on:
   workflow_dispatch:
@@ -17,29 +17,20 @@ jobs:
       - name: Depoyu Kopyala
         uses: actions/checkout@v4
 
-      - name: SSH Sunucusunu ve Tünel Araçlarını Kur
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-          sudo npm install -g localtunnel
-
-      - name: SSH Şifresini Ayarla
+      - name: SSH Sunucusunu Yapılandır ve Başlat
         run: |
           echo "runner:${{ github.event.inputs.ssh_password }}" | sudo chpasswd
           sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
           sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo service ssh restart
 
-      - name: LocalTunnel ile SSH Bağlantısını Başlat
+      - name: Serveo TCP Tünelini Aç ve Bağlantı Komutunu Göster
         run: |
           echo "=========================================="
-          echo "SSH Bağlantı Bilgileri:"
+          echo "SSH baglantisi kuruluyor..."
           echo "Kullanıcı Adı: runner"
           echo "Şifre: ${{ github.event.inputs.ssh_password }}"
           echo "=========================================="
           
-          # Localtunnel ile 22 numaralı portu dışarıya açıyoruz
-          lt --port 22 &
-          
-          # Tünel adresinin oluşması için biraz bekleyip döngüye alıyoruz
-          sleep 99999
+          # Serveo ile 22. portu dışarı açıyoruz ve bağlantı adresini alıyoruz
+          ssh -o StrictHostKeyChecking=no -R 0:localhost:22 serveo.net
