@@ -15,7 +15,6 @@ jobs:
         id: rdp_setup
         shell: pwsh
         run: |
-          # Buyuk harf, kucuk harf, rakam ve ozel karakter iceren 16 karakterlik sifre uret
           $upper = (Get-Random -Count 4 -InputObject ('ABCDEFGHJKLMNPQRSTUVWXYZ'.ToCharArray())) -join ''
           $lower = (Get-Random -Count 4 -InputObject ('abcdefghijkmnopqrstuvwxyz'.ToCharArray())) -join ''
           $digits = (Get-Random -Count 4 -InputObject ('23456789'.ToCharArray())) -join ''
@@ -32,10 +31,26 @@ jobs:
           Start-Service -Name TermService
 
       - name: Tailscale Kur ve Aga Baglan
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-          hostname: gh-runner-rdp
+        shell: pwsh
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TS_AUTHKEY)) {
+            throw "TS_AUTHKEY secret tanimli degil."
+          }
+
+          winget install --id Tailscale.Tailscale -e --silent --accept-package-agreements --accept-source-agreements
+
+          $env:Path += ";C:\Program Files\Tailscale"
+          Start-Service -Name Tailscale -ErrorAction SilentlyContinue
+
+          for ($i = 0; $i -lt 15; $i++) {
+            if (Get-Command tailscale -ErrorAction SilentlyContinue) { break }
+            Start-Sleep -Seconds 2
+          }
+
+          tailscale up --authkey="$env:TS_AUTHKEY" --hostname="gh-runner-rdp"
+          tailscale status
 
       - name: Baglanti Bilgilerini Yazdir ve Oturumu Acik Tut
         shell: pwsh
