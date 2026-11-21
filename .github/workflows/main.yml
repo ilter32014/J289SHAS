@@ -19,10 +19,14 @@ jobs:
 
       - name: Yerel Kullanici Sifresini Ayarla ve RDP Ac
         shell: pwsh
+        env:
+          RDP_PASS: ${{ inputs.rdp_password }}
         run: |
-          $user = $env:USERNAME
-          $pass = ConvertTo-SecureString "${{ github.event.inputs.rdp_password }}" -AsPlainText -Force
-          Set-LocalUser -Name $user -Password $pass
+          if ([string]::IsNullOrWhiteSpace($env:RDP_PASS)) {
+            throw "RDP sifresi bos olamaz."
+          }
+
+          net user $env:USERNAME $env:RDP_PASS | Out-Null
 
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
