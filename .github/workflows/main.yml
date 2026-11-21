@@ -20,17 +20,38 @@ jobs:
       - name: SSH Sunucusunu Yapılandır ve Başlat
         run: |
           echo "runner:${{ github.event.inputs.ssh_password }}" | sudo chpasswd
-          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+          # Ana ayar dosyasina ek olarak sshd_config.d altina kural ekleyerek ezilmesini onle
+          sudo mkdir -p /etc/ssh/sshd_config.d
+          cat << 'EOF' | sudo tee /etc/ssh/sshd_config.d/99-custom-tunnel.conf > /dev/null
+          PasswordAuthentication yes
+          KbdInteractiveAuthentication yes
+          PermitRootLogin yes
+          EOF
+
+          # Ayar dosyasinda soz dizimi hatasi olmadigini dogrula ve servisi baslat
+          sudo sshd -t
           sudo service ssh restart
+          sudo service ssh status --no-pager
 
       - name: Serveo TCP Tünelini Aç ve Bağlantı Komutunu Göster
         run: |
           echo "=========================================="
           echo "SSH baglantisi kuruluyor..."
-          echo "Kullanıcı Adı: runner"
-          echo "Şifre: ${{ github.event.inputs.ssh_password }}"
+          echo "Kullanici Adi: runner"
+          echo "Sifre: ${{ github.event.inputs.ssh_password }}"
           echo "=========================================="
-          
-          # Serveo ile 22. portu dışarı açıyoruz ve bağlantı adresini alıyoruz
-          ssh -o StrictHostKeyChecking=no -R 0:localhost:22 serveo.net
+
+          # Serveo bazen baglantiyi kapatabilir; baglanti dusunce kisa bir bekleme ile tekrar dener
+          while true; do
+            ssh -T -N \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=3 \
+              -o ExitOnForwardFailure=yes \
+              -R 0:localhost:22 serveo.net || true
+
+            echo "Serveo baglantisi kapandi veya kurulamadi, 5 saniye sonra yeniden deneniyor..."
+            sleep 5
+          done
