@@ -1,13 +1,7 @@
 name: Windows Tailscale RDP
 
 on:
-  workflow_dispatch:
-    inputs:
-      rdp_password:
-        description: 'RDP Baglanti Sifreniz'
-        required: true
-        default: 'GucluSifre123!'
-        type: string
+  workflow_dispatch: {}
 
 jobs:
   rdp:
@@ -17,16 +11,20 @@ jobs:
       - name: Depoyu Kopyala
         uses: actions/checkout@v4
 
-      - name: Yerel Kullanici Sifresini Ayarla ve RDP Ac
+      - name: Guclu Sifre Uret, Kullaniciya Ata ve RDP Ac
+        id: rdp_setup
         shell: pwsh
-        env:
-          RDP_PASS: ${{ inputs.rdp_password }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:RDP_PASS)) {
-            throw "RDP sifresi bos olamaz."
-          }
+          # Buyuk harf, kucuk harf, rakam ve ozel karakter iceren 16 karakterlik sifre uret
+          $upper = (Get-Random -Count 4 -InputObject ('ABCDEFGHJKLMNPQRSTUVWXYZ'.ToCharArray())) -join ''
+          $lower = (Get-Random -Count 4 -InputObject ('abcdefghijkmnopqrstuvwxyz'.ToCharArray())) -join ''
+          $digits = (Get-Random -Count 4 -InputObject ('23456789'.ToCharArray())) -join ''
+          $special = (Get-Random -Count 4 -InputObject ('!@#%*-_=+'.ToCharArray())) -join ''
+          $rawPass = ($upper + $lower + $digits + $special).ToCharArray() | Get-Random -Count 16
+          $pass = -join $rawPass
 
-          net user $env:USERNAME $env:RDP_PASS | Out-Null
+          net user $env:USERNAME $pass | Out-Null
+          "RDP_PASSWORD=$pass" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
@@ -41,12 +39,14 @@ jobs:
 
       - name: Baglanti Bilgilerini Yazdir ve Oturumu Acik Tut
         shell: pwsh
+        env:
+          RDP_PASS: ${{ steps.rdp_setup.outputs.RDP_PASSWORD }}
         run: |
           Write-Host "=========================================="
           Write-Host "Windows RDP hazir!"
           Write-Host "Bilgisayar / Hostname: gh-runner-rdp"
           Write-Host "Kullanici Adi: $env:USERNAME"
-          Write-Host "Sifre: ${{ github.event.inputs.rdp_password }}"
+          Write-Host "Sifre: $env:RDP_PASS"
           Write-Host "=========================================="
 
           while ($true) { Start-Sleep -Seconds 3600 }
