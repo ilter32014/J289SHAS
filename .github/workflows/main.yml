@@ -1,4 +1,4 @@
-name: Serveo SSH Tunnel
+name: Direct Tailscale SSH
 
 on:
   workflow_dispatch:
@@ -17,11 +17,10 @@ jobs:
       - name: Depoyu Kopyala
         uses: actions/checkout@v4
 
-      - name: SSH Sunucusunu Yapılandır ve Başlat
+      - name: SSH Sunucusunu Yapilandir ve Baslat
         run: |
           echo "runner:${{ github.event.inputs.ssh_password }}" | sudo chpasswd
 
-          # Ana ayar dosyasina ek olarak sshd_config.d altina kural ekleyerek ezilmesini onle
           sudo mkdir -p /etc/ssh/sshd_config.d
           cat << 'EOF' | sudo tee /etc/ssh/sshd_config.d/99-custom-tunnel.conf > /dev/null
           PasswordAuthentication yes
@@ -29,29 +28,24 @@ jobs:
           PermitRootLogin yes
           EOF
 
-          # Ayar dosyasinda soz dizimi hatasi olmadigini dogrula ve servisi baslat
           sudo sshd -t
           sudo service ssh restart
           sudo service ssh status --no-pager
 
-      - name: Serveo TCP Tünelini Aç ve Bağlantı Komutunu Göster
+      - name: Tailscale Kur ve Aga Baglan
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          hostname: gh-runner-ssh
+
+      - name: Baglanti Bilgilerini Yazdir ve Oturumu Acik Tut
         run: |
           echo "=========================================="
-          echo "SSH baglantisi kuruluyor..."
+          echo "Tailscale SSH hazir!"
           echo "Kullanici Adi: runner"
           echo "Sifre: ${{ github.event.inputs.ssh_password }}"
+          echo "Dogrudan Baglanti: ssh runner@gh-runner-ssh"
           echo "=========================================="
 
-          # Serveo bazen baglantiyi kapatabilir; baglanti dusunce kisa bir bekleme ile tekrar dener
-          while true; do
-            ssh -T -N \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              -o ServerAliveInterval=30 \
-              -o ServerAliveCountMax=3 \
-              -o ExitOnForwardFailure=yes \
-              -R 0:localhost:22 serveo.net || true
-
-            echo "Serveo baglantisi kapandi veya kurulamadi, 5 saniye sonra yeniden deneniyor..."
-            sleep 5
-          done
+          # Job'in hemen kapanmamasi icin bekle
+          sleep infinity
