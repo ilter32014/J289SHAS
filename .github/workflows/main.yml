@@ -1,51 +1,48 @@
-name: Direct Tailscale SSH
+name: Windows Tailscale RDP
 
 on:
   workflow_dispatch:
     inputs:
-      ssh_password:
-        description: 'SSH Baglanti Sifreniz'
+      rdp_password:
+        description: 'RDP Baglanti Sifreniz'
         required: true
-        default: 'GucluBirSifre123!'
+        default: 'GucluSifre123!'
         type: string
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  rdp:
+    runs-on: windows-latest
 
     steps:
       - name: Depoyu Kopyala
         uses: actions/checkout@v4
 
-      - name: SSH Sunucusunu Yapilandir ve Baslat
+      - name: Yerel Kullanici Sifresini Ayarla ve RDP Ac
+        shell: pwsh
         run: |
-          echo "runner:${{ github.event.inputs.ssh_password }}" | sudo chpasswd
+          $user = $env:USERNAME
+          $pass = ConvertTo-SecureString "${{ github.event.inputs.rdp_password }}" -AsPlainText -Force
+          Set-LocalUser -Name $user -Password $pass
 
-          sudo mkdir -p /etc/ssh/sshd_config.d
-          cat << 'EOF' | sudo tee /etc/ssh/sshd_config.d/99-custom-tunnel.conf > /dev/null
-          PasswordAuthentication yes
-          KbdInteractiveAuthentication yes
-          PermitRootLogin yes
-          EOF
-
-          sudo sshd -t
-          sudo service ssh restart
-          sudo service ssh status --no-pager
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service -Name TermService
 
       - name: Tailscale Kur ve Aga Baglan
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
-          hostname: gh-runner-ssh
+          hostname: gh-runner-rdp
 
       - name: Baglanti Bilgilerini Yazdir ve Oturumu Acik Tut
+        shell: pwsh
         run: |
-          echo "=========================================="
-          echo "Tailscale SSH hazir!"
-          echo "Kullanici Adi: runner"
-          echo "Sifre: ${{ github.event.inputs.ssh_password }}"
-          echo "Dogrudan Baglanti: ssh runner@gh-runner-ssh"
-          echo "=========================================="
+          Write-Host "=========================================="
+          Write-Host "Windows RDP hazir!"
+          Write-Host "Bilgisayar / Hostname: gh-runner-rdp"
+          Write-Host "Kullanici Adi: $env:USERNAME"
+          Write-Host "Sifre: ${{ github.event.inputs.rdp_password }}"
+          Write-Host "=========================================="
 
-          # Job'in hemen kapanmamasi icin bekle
-          sleep infinity
+          while ($true) { Start-Sleep -Seconds 3600 }
